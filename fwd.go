@@ -3,13 +3,15 @@ package main
 import (
 	"fmt"
 	"github.com/fatih/color"
+	"github.com/mattn/go-shellwords"
 	"github.com/urfave/cli"
+	"io"
 	"net"
 	"os"
-	"io"
+	"os/exec"
 	"os/signal"
-	"syscall"
 	"runtime"
+	"syscall"
 )
 
 func getLocalAddrs() ([]net.IP, error) {
@@ -133,6 +135,14 @@ func ctrlc() {
 	}()
 }
 
+func parseCommand(cmd string) ([]string, error) {
+	args, err := shellwords.NewParser().Parse(cmd)
+	if err != nil {
+		return []string{}, err
+	}
+	return args, nil
+}
+
 func main() {
 	app := cli.NewApp()
 	app.Name = "fwd"
@@ -157,6 +167,11 @@ func main() {
 			Name:   "to, t",
 			EnvVar: "FWD_TO",
 			Usage:  "destination HOST:PORT",
+		},
+		cli.StringFlag{
+			Name:   "prepare, p",
+			EnvVar: "FWD_PREPARE",
+			Usage:  "execute COMMAND before connecting server",
 		},
 		cli.BoolFlag{
 			Name:  "list, l",
@@ -193,6 +208,12 @@ func main() {
 			cli.ShowAppHelp(c)
 			return nil
 		} else {
+			if c.String("prepare") != "" {
+				args, err := parseCommand(c.String("prepare"))
+				errHandler(err)
+				err = exec.Command(args[0], args[1:]...).Run()
+				errHandler(err)
+			}
 			ctrlc()
 			if c.Bool("udp") {
 				udpStart(c.String("from"), c.String("to"))
